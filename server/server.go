@@ -8,6 +8,30 @@ import (
 	"go.uber.org/zap"
 )
 
+type Client struct {
+	conn    *websocket.Conn
+	server  *Server
+	send    chan []byte
+	address string
+	name    string
+}
+
+type Server struct {
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
+	unregister chan *Client
+}
+
+func NewServer() *Server {
+	return &Server{
+		clients:    make(map[*Client]bool),
+		broadcast:  make(chan []byte),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+	}
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -17,6 +41,8 @@ var upgrader = websocket.Upgrader{
 }
 
 func (s *Server) Run(port int, logger *zap.Logger) error {
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
 	http.HandleFunc("/ws", s.handleWebSocket)
 
 	go s.run(logger)

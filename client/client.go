@@ -2,30 +2,27 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 func main() {
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-
-	name := ""
+	name := "Anonymous"
 	if len(os.Args) > 1 {
 		name = os.Args[1]
 	}
 
-	u := url.URL{Scheme: "ws", Host: "localhost:8000", Path: "/ws"}
-	q := u.Query()
-	if name != "" {
-		q.Set("name", name)
-	}
-	u.RawQuery = q.Encode()
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
 
+	u := url.URL{Scheme: "ws", Host: "localhost:8000", Path: "/ws", RawQuery: fmt.Sprintf("name=%s", url.QueryEscape(name))}
 	log.Printf("connecting to %s", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -48,28 +45,38 @@ func main() {
 		}
 	}()
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		err := c.WriteMessage(websocket.TextMessage, scanner.Bytes())
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("> ")
+		text, err := reader.ReadString('\n')
+		if err != nil {
+			log.Fatal("read input:", err)
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+
+		err = c.WriteMessage(websocket.TextMessage, []byte(text))
 		if err != nil {
 			log.Println("write:", err)
 			return
 		}
-	}
 
-	select {
-	case <-done:
-		return
-	case <-interrupt:
-		log.Println("interrupt")
-
-		err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		if err != nil {
-			log.Println("write close:", err)
-			return
-		}
 		select {
 		case <-done:
+			return
+		case <-interrupt:
+			log.Println("interrupt")
+			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				log.Println("write close:", err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+			}
+			return
 		}
 	}
 }
