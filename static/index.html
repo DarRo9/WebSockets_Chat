@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Чат</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #chat {
+            height: 400px;
+            border: 1px solid #ccc;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        #message {
+            width: 70%;
+            padding: 5px;
+        }
+        #send {
+            width: 25%;
+            padding: 5px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        .system {
+            background-color: #f0f0f0;
+            color: #666;
+        }
+        .user {
+            background-color: #e3f2fd;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Чат</h1>
+    <div id="login">
+        <input type="text" id="name" placeholder="Введите ваше имя">
+        <button onclick="connect()">Подключиться</button>
+    </div>
+    <div id="chat-container" style="display: none;">
+        <div id="chat"></div>
+        <div>
+            <input type="text" id="message" placeholder="Введите сообщение">
+            <button id="send" onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let name;
+
+        function connect() {
+            name = document.getElementById('name').value;
+            if (!name) {
+                alert('Пожалуйста, введите имя');
+                return;
+            }
+
+            ws = new WebSocket(`ws://${window.location.host}/ws?name=${encodeURIComponent(name)}`);
+            
+            ws.onopen = function() {
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('chat-container').style.display = 'block';
+            };
+
+            ws.onmessage = function(event) {
+                const message = event.data;
+                const div = document.createElement('div');
+                div.className = 'message ' + (message.startsWith('You are') ? 'system' : 'user');
+                div.textContent = message;
+                document.getElementById('chat').appendChild(div);
+                document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+            };
+
+            ws.onclose = function() {
+                alert('Соединение закрыто');
+                document.getElementById('login').style.display = 'block';
+                document.getElementById('chat-container').style.display = 'none';
+            };
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value;
+            if (message && ws) {
+                ws.send(message);
+                messageInput.value = '';
+            }
+        }
+
+        document.getElementById('message').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html> 
+</html> 
